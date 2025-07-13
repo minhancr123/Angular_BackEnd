@@ -1,0 +1,29 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="9.0.7" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.NewtonsoftJson" Version="9.0.7" />
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="9.0.3" />
+    <PackageReference Include="System.Data.SqlClient" Version="4.9.0" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.12.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="DBConnection">
+      <HintPath>DPS\DBConnection.dll</HintPath>
+    </Reference>
+    <Reference Include="DPSinfra">
+      <HintPath>C:\Users\huynh\Desktop\JeeBeginner-main\JeeBeginner-main\JeeBeginner-API\bin\Debug\net5.0\DPSinfra.dll</HintPath>
+    </Reference>
+    <Reference Include="DpsLibs">
+      <HintPath>DPS\DpsLibs.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+</Project>
