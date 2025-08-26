@@ -1,4 +1,5 @@
-﻿using DpsLibs.Data;
+﻿using AngularBackEnd.Models.AccountManagement;
+using DpsLibs.Data;
 using JeeBeginner.Classes;
 using JeeBeginner.Models.AccountManagement;
 using JeeBeginner.Models.Common;
@@ -55,7 +56,7 @@ namespace JeeBeginner.Reponsitories.AccountManagement
             val.Add("IsLock", 0);
             val.Add("Gender", account.Gender);
             val.Add("Note", account.Note);
-            val.Add("IsMasterAccount", 0);
+            val.Add("IsMasterAccount", 1);
             if (!isUpdate)
             {
                 val.Add("CreatedDate", DateTime.UtcNow);
@@ -213,5 +214,165 @@ namespace JeeBeginner.Reponsitories.AccountManagement
             }
             return await Task.FromResult(new ReturnSqlModel());
         }
+
+        public async Task<IEnumerable<AccountRole>> GetUserById(int id)
+        {
+            SqlConditions Conds = new SqlConditions();
+            Conds.Add("RowID", id);
+
+            string sql = @"
+        SELECT AccountList.*, Tbl_Permision.*, Tbl_Account_Permit.Edit ,Tbl_Account_Permit.Visible
+        FROM AccountList
+        JOIN Tbl_Account_Permit ON Tbl_Account_Permit.Username = AccountList.Username
+        JOIN Tbl_Permision ON Tbl_Account_Permit.Id_Permit = Tbl_Permision.Id_permit
+        WHERE AccountList.RowID = @RowID";
+
+            using (DpsConnection cnn = new DpsConnection(_connectionString))
+            {
+                var dt = await cnn.CreateDataTableAsync(sql, Conds);
+
+                if (dt.Rows.Count == 0)
+                    return null; // hoặc throw lỗi nếu cần
+
+                if (dt.Rows.Count == 0)
+                    return new List<AccountRole>(); // trả list rỗng thay vì null
+
+                string username = dt.Rows[0]["Username"].ToString();
+                string fullname = dt.Rows[0]["Fullname"].ToString();
+                string mobile = dt.Rows[0]["Mobile"].ToString();
+                int rowId = int.Parse(dt.Rows[0]["RowID"].ToString());
+
+
+                // Lấy thông tin user (chỉ từ dòng đầu tiên)
+                var accountRole = dt.AsEnumerable().Select(row => new AccountRole
+                {
+                    Fullname = fullname,
+                    Mobile = mobile,
+                    Id_Permit = Convert.ToByte(row["Id_permit"].ToString()),
+                    Username = username,
+                    Tenquyen = row["Tenquyen"].ToString(),
+                    Description = row["Description"].ToString(),
+                    Edit = row["Edit"] != DBNull.Value && Convert.ToBoolean(row["Edit"]),
+                    Visible = row["Visible"] != DBNull.Value && Convert.ToBoolean(row["Visible"])
+                }).ToList();
+
+                return accountRole;
+            }
+        }
+
+        public Task<(bool Susscess, string ErrorMessgage)> UpdateUserRoles(int userId, List<RoleDTO> roles, int updatedBy)
+        {
+            try
+            {
+                using (var db = new DpsConnection(_connectionString))
+                {
+                    db.BeginTransaction();
+
+                    // 1. Lấy Username từ AccountList
+                    string getUserSql = "SELECT Username FROM AccountList WHERE RowID = @UserId";
+                    var dtUser = db.CreateDataTable(getUserSql, new SqlConditions { { "UserId", userId } });
+
+                    if (dtUser.Rows.Count == 0)
+                    {
+                        db.RollbackTransaction();
+                        return Task.FromResult<(bool Susscess, string ErrorMessgage)>((false, "Không tìm thấy Username"));
+                    }
+
+                    string username = dtUser.Rows[0]["Username"].ToString();
+
+                    // 2. Lặp qua roles để update hoặc insert
+                    foreach (var role in roles)
+                    {
+                        string roleId = role.Id_Permit;
+                        int editValue = role.viewOnly ? 0 : 1;
+                        int Visible = role.Edit ? 1 : 0;
+                        // Kiểm tra tồn tại
+                        string checkSql = "SELECT COUNT(*) AS Cnt FROM Tbl_Account_Permit WHERE Username = @Username AND Id_Permit = @IdPermit";
+                        var dtCheck = db.CreateDataTable(checkSql, new SqlConditions
+                {
+                    { "Username", username },
+                    { "IdPermit", roleId }
+                });
+
+                        int exists = Convert.ToInt32(dtCheck.Rows[0]["Cnt"]);
+
+                        if (exists > 0)
+                        {
+                            // Update Edit = editValue
+                            string updateSql = @"UPDATE Tbl_Account_Permit
+                                         SET Edit = @Edit
+                                         WHERE Username = @Username AND Id_Permit = @IdPermit";
+                            if (db.ExecuteNonQuery(updateSql, new SqlConditions
+                    {
+                        { "Edit", editValue },
+                        { "Username", username },
+                        { "IdPermit", roleId }
+                    }) <= 0)
+                            {
+                                db.RollbackTransaction();
+                                return Task.FromResult<(bool Susscess, string ErrorMessgage)>((false, $"Không thể update role {roleId}"));
+                            }
+                            // Update Visible
+                            //        string updateSql1 = @"UPDATE MainMenu
+                            //                     SET Visible = @Visible
+                            //                     WHERE  PermissionID = @IdPermit";
+                            //        if (db.ExecuteNonQuery(updateSql1, new SqlConditions
+                            //{
+                            //    { "Visible", Visible },
+                            //    { "IdPermit", roleId }
+                            //}) <= 0)
+                            //        {
+                            //            db.RollbackTransaction();
+                            //            return Task.FromResult<(bool Susscess, string ErrorMessgage)>((false, $"Không thể update role {roleId}"));
+                            //        }
+
+                            // Update Visible = VisibleValue
+                            string updateSql1 = @"UPDATE Tbl_Account_Permit
+                                         SET Visible = @Visible
+                                         WHERE Username = @Username AND Id_Permit = @IdPermit";
+                            if (db.ExecuteNonQuery(updateSql1, new SqlConditions
+                    {
+                        { "Visible", Visible },
+                        { "Username", username },
+                        { "IdPermit", roleId }
+                    }) <= 0)
+                            {
+                                db.RollbackTransaction();
+                                return Task.FromResult<(bool Susscess, string ErrorMessgage)>((false, $"Không thể update role {roleId}"));
+                            }
+                        }
+                        else
+                        {
+                            // Insert mới
+                            string insertSql = @"INSERT INTO Tbl_Account_Permit (Username, Id_Permit, Edit, Id_chucnang,Visible)
+                                         VALUES (@Username, @IdPermit, @Edit, NULL , @Visible)";
+                            if (db.ExecuteNonQuery(insertSql, new SqlConditions
+                    {
+                        { "Username", username },
+                        { "IdPermit", roleId },
+                        { "Edit", editValue },
+                        {"Visible", Visible }
+                    }) <= 0)
+                            {
+                                db.RollbackTransaction();
+                                return Task.FromResult<(bool Susscess, string ErrorMessgage)>((false, $"Không thể thêm role {roleId}"));
+                            }
+
+
+                        }
+                    }
+
+                    db.EndTransaction();
+                    return Task.FromResult<(bool Susscess, string ErrorMessgage)>((true, ""));
+                }
+            }
+            catch (Exception ex)
+            {
+                return Task.FromResult<(bool Susscess, string ErrorMessgage)>((false, ex.Message));
+            }
+        }
+
+
+
     }
 }

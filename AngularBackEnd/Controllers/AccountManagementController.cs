@@ -1,4 +1,5 @@
-﻿using DpsLibs.Data;
+﻿using AngularBackEnd.Models.AccountManagement;
+using DpsLibs.Data;
 using JeeBeginner.Classes;
 using JeeBeginner.Models.AccountManagement;
 using JeeBeginner.Models.Common;
@@ -13,7 +14,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using static JeeBeginner.Models.Common.Panigator;
+using static JeeBeginner.Models.Common.Paginator;
 
 namespace JeeBeginner.Controllers
 {
@@ -45,83 +46,143 @@ namespace JeeBeginner.Controllers
             try
             {
                 var user = Ulities.GetUserByHeader(HttpContext.Request.Headers, _jwtSecret);
-                if (user is null) return JsonResultCommon.BatBuoc("Đăng nhập");
+                if (user == null)
+                    return JsonResultCommon.BatBuoc("Đăng nhập");
 
-                query = query == null ? new QueryRequestParams() : query;
+                query ??= new QueryRequestParams();
+                query.Paginator ??= new Paginator(1, 10, 0);
+
+
                 BaseModel<object> model = new BaseModel<object>();
                 PageModel pageModel = new PageModel();
-                ErrorModel error = new ErrorModel();
                 SqlConditions conds = new SqlConditions();
+
                 string orderByStr = "AccountList.RowID asc";
-                string whereStr = "PartnerList.IsLock = 0";
-                conds.Add("PartnerList.IsLock", 0);
-                string partnerID = GeneralService.GetObjectDB($"select PartnerID from AccountList where RowID = {user.Id}", _connectionString).ToString();
-                if (user.IsMasterAccount)
+                conds.Add("PartnerList.IsLock", 0); // Mặc định lọc đối tác chưa khóa
+
+                var partnerObj = GeneralService.GetObjectDB(
+                    $"SELECT PartnerList.RowID FROM AccountList JOIN PartnerList ON AccountList.PartnerID = PartnerList.RowID WHERE AccountList.RowID = {user.Id}",
+                    _connectionString
+                );
+
+                if (partnerObj == null)
+                    return JsonResultCommon.KhongTonTai("Không tìm thấy đối tác của tài khoản");
+
+                string partnerID = partnerObj.ToString();
+
+                // Nếu không phải tài khoản master thì chỉ xem dữ liệu của đối tác mình
+                if (!user.IsMasterAccount)
                 {
+                    conds.Add("PartnerList.RowID", partnerID);
                 }
-                else
+
+                // Mapping cột để sort
+                var filter = new Dictionary<string, string>
+        {
+            { "stt", "AccountList.RowID" },
+            { "username", "AccountList.Username" },
+            { "tendoitac", "PartnerList.PartnerName" },
+            { "tinhtrang", "AccountList.IsLock" },
+        };
+
+                // Xử lý sort
+                if (query.Sort != null && !string.IsNullOrEmpty(query.Sort.ColumnName) && filter.ContainsKey(query.Sort.ColumnName))
                 {
-                    conds.Add("AccountList.IsLock", partnerID);
+                    orderByStr = filter[query.Sort.ColumnName] + " " +
+                        (query.Sort.Direction.Equals("asc", StringComparison.OrdinalIgnoreCase) ? "asc" : "desc");
                 }
-                Dictionary<string, string> filter = new Dictionary<string, string>
-                        {
-                            {"stt", "AccountList.RowID" },
-                            { "username", "AccountList.Username"},
-                            { "tendoitac", "PartnerList.PartnerName"},
-                            { "tinhtrang", "AccountList.IsLock"},
-                        };
-                if (query.Sort != null)
-                {
-                    if (!string.IsNullOrEmpty(query.Sort.ColumnName) && filter.ContainsKey(query.Sort.ColumnName))
-                    {
-                        ///abc
-                        orderByStr = filter[query.Sort.ColumnName] + " " + (query.Sort.Direction.Equals("asc", StringComparison.OrdinalIgnoreCase) ? "asc" : "desc");
-                    }
-                }
+
+                // Xử lý filter
                 if (query.Filter != null)
                 {
-                    if (query.Filter.ContainsKey("status"))
+                    if (query.Filter.TryGetValue("status", out var status) && status != "-1")
                     {
-                        var status = query.Filter["status"];
-                        if (!status.Equals("-1"))
-                        {
-                            if (!string.IsNullOrEmpty(whereStr))
-                            {
-                                conds.Add("AccountList.IsLock", status);
-                            }
-                        }
+                        conds.Add("AccountList.IsLock", status);
                     }
-                    if (query.Filter.ContainsKey("doitac"))
+
+                    if (query.Filter.TryGetValue("doitac", out var doitac) && doitac != "-1")
                     {
-                        var doitac = query.Filter["doitac"];
-                        if (!doitac.Equals("-1"))
-                        {
-                            if (!string.IsNullOrEmpty(whereStr))
-                            {
-                                conds.Add("AccountList.PartnerID", doitac);
-                            }
-                        }
-                    }
-                    if (!string.IsNullOrEmpty(query.SearchValue))
-                    {
-                        if (!string.IsNullOrEmpty(whereStr)) whereStr += " and ";
-                        conds.Add("AccountList.Fullname", $"%{partnerID}%");
+                        conds.Add("PartnerList.RowID", doitac);
                     }
                 }
-                bool Visible = true;
-                Visible = !_authService.IsReadOnlyPermit("1", user.Username);
-                var customerlist = await _service.GetAll(conds, orderByStr);
-                if (customerlist.Count() == 0)
-                    return JsonResultCommon.ThatBai("Không có dữ liệu");
-                if (customerlist is null)
+
+                // Tìm kiếm theo tên
+                if (!string.IsNullOrEmpty(query.SearchValue))
+                {
+                    conds.Add("AccountList.Fullname", $"%{query.SearchValue}%" , SqlOperator.Like);
+                }
+
+
+                // Kiểm tra quyền xem
+                bool visible = !_authService.IsReadOnlyPermit("1", user.Username);
+
+                var customerList = await _service.GetAll(conds, orderByStr);
+
+                if (customerList == null)
                     return JsonResultCommon.KhongTonTai();
-                pageModel.TotalCount = customerlist.Count();
-                pageModel.AllPage = (int)Math.Ceiling(customerlist.Count() / (decimal)query.Panigator.PageSize);
-                pageModel.Size = query.Panigator.PageSize;
-                pageModel.Page = query.Panigator.PageIndex;
-                customerlist = customerlist.AsEnumerable().Skip((query.Panigator.PageIndex - 1) * query.Panigator.PageSize).Take(query.Panigator.PageSize);
-                return JsonResultCommon.ThanhCong(customerlist, pageModel, Visible);
+
+                if (!customerList.Any())
+                    return JsonResultCommon.ThatBai("Không có dữ liệu");
+
+                // Phân trang
+                int total = customerList.Count();
+                pageModel.TotalCount = total;
+                pageModel.AllPage = (int)Math.Ceiling(total / (decimal)query.Paginator.PageSize);
+                pageModel.Size = query.Paginator.PageSize;
+                pageModel.Page = query.Paginator.PageIndex;
+
+                var pagedData = customerList
+                    .Skip((query.Paginator.PageIndex - 1) * query.Paginator.PageSize)
+                    .Take(query.Paginator.PageSize);
+
+                return JsonResultCommon.ThanhCong(pagedData, pageModel, visible);
             }
+            catch (Exception ex)
+            {
+                return JsonResultCommon.Exception(ex);
+            }
+        }
+        [HttpGet("Get_User/{id}")]
+        public async Task<object> GeUserById(int id)
+        {
+            try
+            {
+                var user = Ulities.GetUserByHeader(HttpContext.Request.Headers, _jwtSecret);
+                if (user == null)
+                    return JsonResultCommon.BatBuoc("Đăng nhập");
+
+                // Lấy PartnerID của user cần xem
+                var partnerObj = GeneralService.GetObjectDB(
+                    $"SELECT PartnerList.RowID FROM AccountList " +
+                    $"JOIN PartnerList ON AccountList.PartnerID = PartnerList.RowID " +
+                    $"WHERE AccountList.RowID = {id}",
+                    _connectionString
+                );
+
+                if (partnerObj == null)
+                    return JsonResultCommon.KhongTonTai("Không tìm thấy đối tác của tài khoản");
+
+                string partnerID = partnerObj.ToString();
+
+                // Nếu không phải tài khoản master thì chỉ xem dữ liệu của đối tác mình
+                //if (!user.IsMasterAccount && user.PartnerID.ToString() != partnerID)
+                //{
+                //    return JsonResultCommon.KhongDuQuyen("Bạn không có quyền xem thông tin tài khoản này");
+                //}
+
+                // Lấy thông tin user theo ID
+                var customer = await _service.GetUserById(id);
+
+                if (customer == null)
+                    return JsonResultCommon.KhongTonTai("Không tìm thấy người dùng");
+
+                // Kiểm tra quyền
+                bool visible = !_authService.IsReadOnlyPermit("1", user.Username);
+
+                return JsonResultCommon.ThanhCong(customer, visible);
+            }
+
+
             catch (Exception ex)
             {
                 return JsonResultCommon.Exception(ex);
@@ -179,6 +240,34 @@ namespace JeeBeginner.Controllers
                     return JsonResultCommon.ThatBai(update.ErrorMessgage);
                 }
                 return JsonResultCommon.ThanhCong(accountModel);
+            }
+            catch (Exception ex)
+            {
+                return JsonResultCommon.Exception(ex);
+            }
+        }
+
+        [HttpPost("UpdateUserRoles/{userId}")]
+        public async Task<object> UpdateUserRoles(int userId, [FromBody] List<RoleDTO> roles)
+        {
+            try
+            {
+                var user = Ulities.GetUserByHeader(HttpContext.Request.Headers, _jwtSecret);
+                if (user == null)
+                    return JsonResultCommon.BatBuoc("Đăng nhập");
+
+                // Kiểm tra tồn tại user cần cập nhật
+                string sqlCheckUser = $"SELECT RowID FROM AccountList WHERE RowID = {userId}";
+                bool isExistUser = GeneralService.IsExistDB(sqlCheckUser, _connectionString);
+                if (!isExistUser)
+                    return JsonResultCommon.KhongTonTai("Không tìm thấy user");
+
+                // Gọi service để cập nhật roles cho user
+                var result = await _service.UpdateUserRoles(userId, roles, user.Id);
+                if (!result.Susscess)
+                    return JsonResultCommon.ThatBai(result.ErrorMessgage);
+
+                return JsonResultCommon.ThanhCong();
             }
             catch (Exception ex)
             {

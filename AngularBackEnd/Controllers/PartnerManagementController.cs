@@ -11,7 +11,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using static JeeBeginner.Models.Common.Panigator;
+using static JeeBeginner.Models.Common.Paginator;
 
 namespace JeeBeginner.Controllers
 {
@@ -84,10 +84,10 @@ namespace JeeBeginner.Controllers
                 if (customerlist is null)
                     return JsonResultCommon.KhongTonTai();
                 pageModel.TotalCount = customerlist.Count();
-                pageModel.AllPage = (int)Math.Ceiling(customerlist.Count() / (decimal)query.Panigator.PageSize);
-                pageModel.Size = query.Panigator.PageSize;
-                pageModel.Page = query.Panigator.PageIndex;
-                customerlist = customerlist.AsEnumerable().Skip((query.Panigator.PageIndex - 1) * query.Panigator.PageSize).Take(query.Panigator.PageSize);
+                pageModel.AllPage = (int)Math.Ceiling(customerlist.Count() / (decimal)query.Paginator.PageSize);
+                pageModel.Size = query.Paginator.PageSize;
+                pageModel.Page = query.Paginator.PageIndex;
+                customerlist = customerlist.AsEnumerable().Skip((query.Paginator.PageIndex - 1) * query.Paginator.PageSize).Take(query.Paginator.PageSize);
                 return JsonResultCommon.ThanhCong(customerlist, pageModel);
             }
             catch (Exception ex)

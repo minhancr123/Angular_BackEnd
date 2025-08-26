@@ -16,5 +16,7 @@ namespace JeeBeginner.Services.Authorization
         void ChangePassword(ChangePasswordModel model);
         List<long> GetRules(string username);
         bool IsReadOnlyPermit(string roleName, string username);
+
+        bool HasVisiblePermit(string roleName, string username);
     }
 }

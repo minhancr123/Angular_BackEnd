@@ -103,6 +103,7 @@ namespace JeeBeginner.Reponsitories.Authorization
             DataTable Tb = null;
             SqlConditions Conds = new SqlConditions();
             Conds.Add("Username", username);
+            Conds.Add("Visible", true);
             var slist = new List<long>();
             using (DpsConnection Conn = new DpsConnection(_connectionString))
             {
@@ -124,22 +125,100 @@ namespace JeeBeginner.Reponsitories.Authorization
         public bool IsReadOnlyPermit(string roleName, string username)
         {
             SqlConditions Conds = new SqlConditions();
-            Conds.Add("Id_permit", roleName);
-            Conds.Add("Username", username);
+            Conds.Add("Id_permit", Convert.ToDouble(roleName));
+            Conds.Add("Username", username, SqlOperator.Like);
             using (DpsConnection Conn = new DpsConnection(_connectionString))
             {
                 DataTable Tb = Conn.CreateDataTable("select Edit from Tbl_Account_Permit where (where)", "(where)", Conds);
-                if ((Tb.Rows.Count > 0) && (bool.FalseString.Equals(Tb.Rows[0][0].ToString())))
+                if (Tb.Rows.Count > 0)
                 {
-                    return true;
+                    bool editValue = false;
+                    var val = Tb.Rows[0][0];
+                    if (val != DBNull.Value && val is bool)
+                    {
+                        editValue = (bool)val;
+                    }
+                    else
+                    {
+                        bool.TryParse(val?.ToString(), out editValue);
+                    }
+                    if (editValue)
+                    {
+                        return true;
+                    }
                 }
+
                 Tb = Conn.CreateDataTable("select Id_permit, Edit from tbl_group_permit gp inner join tbl_group_account gu on gp.id_group=gu.id_group where (where) order by Edit desc", "(where)", Conds);
-                if ((Tb.Rows.Count > 0) && (bool.FalseString.Equals(Tb.Rows[0][1].ToString())))
+                if (Tb.Rows.Count > 0)
                 {
-                    return true;
+                    bool editValue = false;
+                    var val = Tb.Rows[0][1];
+                    if (val != DBNull.Value && val is bool)
+                    {
+                        editValue = (bool)val;
+                    }
+                    else
+                    {
+                        bool.TryParse(val?.ToString(), out editValue);
+                    }
+                    if (editValue)
+                    {
+                        return true;
+                    }
                 }
+
                 return false;
             }
         }
+
+        public bool HasVisiblePermit(string roleName, string username)
+        {
+            SqlConditions Conds = new SqlConditions();
+            Conds.Add("Id_permit", Convert.ToDouble(roleName));
+            Conds.Add("Username", username, SqlOperator.Like);
+
+            using (DpsConnection Conn = new DpsConnection(_connectionString))
+            {
+                // Kiểm tra quyền trong Tbl_Account_Permit
+                DataTable Tb = Conn.CreateDataTable("select Visible from Tbl_Account_Permit where (where)", "(where)", Conds);
+                if (Tb.Rows.Count > 0)
+                {
+                    bool visibleValue = true;
+                    var val = Tb.Rows[0]["Visible"];
+                    if (val != DBNull.Value)
+                        bool.TryParse(val.ToString(), out visibleValue);
+
+                    if (!visibleValue)
+                        return false;
+                    else
+                        return true;
+                }
+
+                // Kiểm tra quyền trong group
+                Tb = Conn.CreateDataTable(
+                    "select gp.Visible from tbl_group_permit gp " +
+                    "inner join tbl_group_account gu on gp.id_group=gu.id_group " +
+                    "where (where) order by gp.Visible desc",
+                    "(where)", Conds);
+
+                if (Tb.Rows.Count > 0)
+                {
+                    bool visibleValue = true;
+                    var val = Tb.Rows[0]["Visible"];
+                    if (val != DBNull.Value)
+                        bool.TryParse(val.ToString(), out visibleValue);
+
+                    if (!visibleValue)
+                        return false;
+                    else
+                        return true;
+                }
+
+                // Mặc định nếu không có record nào => coi như không visible
+                return false;
+            }
+        }
+
+
     }
 }

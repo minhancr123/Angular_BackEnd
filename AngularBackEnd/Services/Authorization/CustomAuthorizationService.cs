@@ -77,5 +77,10 @@ namespace JeeBeginner.Services.Authorization
         {
                return _repository.GetRules(username);
         }
+
+        public bool HasVisiblePermit(string roleName, string username)
+        {
+            return _repository.HasVisiblePermit(roleName, username);
+        }
     }
 }

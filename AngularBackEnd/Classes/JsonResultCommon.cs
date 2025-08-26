@@ -128,7 +128,15 @@ namespace JeeBeginner.Classes
                 data = data
             };
         }
-
+        public static object ThanhCong(object data , bool Visible)
+        {
+            return new
+            {
+                status = 1,
+                data = data,
+                Visible = Visible
+            };
+        }
         public static object ThanhCong(object data, PageModel pageModel)
         {
             return new
@@ -139,14 +147,15 @@ namespace JeeBeginner.Classes
             };
         }
 
-        public static object ThanhCong(object data, PageModel pageModel, bool Visible)
+        public static object ThanhCong(object data, PageModel pageModel, bool Visible , bool? HasPermission = true)
         {
             return new
             {
                 status = 1,
                 data = data,
                 Visible = Visible,
-                panigator = pageModel
+                panigator = pageModel,
+                HasPermission = HasPermission 
             };
         }
 

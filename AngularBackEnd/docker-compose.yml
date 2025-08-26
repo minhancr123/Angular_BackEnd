@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  api:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ConnectionStrings__DefaultConnection=Server=host.docker.internal,1433;Database=JeeBeginner;User=sa;Password=Azingcr123!;TrustServerCertificate=true
+      - JWT__Secret=qZ2Fh8rXnC@k3YvR9T$z!LfX^gH6sQe1WuMnpAxz
+    depends_on:
+      - sqlserver
+    volumes:
+      - uploads:/app/wwwroot/uploads
+
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      - ACCEPT_EULA=Y
+      - SA_PASSWORD=Azingcr123!
+    ports:
+      - "1433:1433"
+    volumes:
+      - sqldata:/var/opt/mssql
+
+volumes:
+  sqldata:
+  uploads:

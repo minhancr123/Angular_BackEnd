@@ -1,4 +1,5 @@
-﻿using DpsLibs.Data;
+﻿using AngularBackEnd.Models.AccountManagement;
+using DpsLibs.Data;
 using JeeBeginner.Models.AccountManagement;
 using JeeBeginner.Models.Common;
 using JeeBeginner.Reponsitories.AccountManagement;
@@ -45,6 +46,16 @@ namespace JeeBeginner.Services
         public async Task<ReturnSqlModel> UpdateStatusAccount(AccountStatusModel model, long CreatedBy)
         {
             return await _reposiory.UpdateStatusAccount(model, CreatedBy);
+        }
+
+        public async Task<IEnumerable<AccountRole>> GetUserById(int id)
+        {
+            return await _reposiory.GetUserById(id);
+        }
+
+        public async Task<(bool Susscess, string ErrorMessgage)> UpdateUserRoles(int userId, List<RoleDTO> roles, int updatedBy)
+        {
+            return await _reposiory.UpdateUserRoles(userId, roles, updatedBy);
         }
     }
 }

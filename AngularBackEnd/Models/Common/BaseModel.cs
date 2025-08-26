@@ -98,13 +98,26 @@ namespace JeeBeginner.Models.Common
 
     public class FilterModel
     {
-        public string keys { get; set; }
-        public string vals { get; set; }
+        private string _keys = "";
+        private string _vals = "";
         private Dictionary<string, string> _dic = new Dictionary<string, string>();
+
+        public string keys
+        {
+            get => _keys ?? "";
+            set => _keys = value;
+        }
+
+        public string vals
+        {
+            get => _vals ?? "";
+            set => _vals = value;
+        }
 
         public FilterModel()
         {
-            keys = vals = "";
+            _keys = "";
+            _vals = "";
         }
 
         public FilterModel(string keys, string vals)
@@ -122,7 +135,7 @@ namespace JeeBeginner.Models.Common
                 string[] arrVals = vals.Split('|');
                 for (int i = 0; i < arrKeys.Length && i < arrVals.Length; i++)
                 {
-                    _dic.Add(arrKeys[i], arrVals[i]);
+                    _dic[arrKeys[i]] = arrVals[i];
                 }
             }
         }
@@ -131,16 +144,15 @@ namespace JeeBeginner.Models.Common
         {
             get
             {
-                if (keys.Length > 0 && _dic.Count == 0)
+                if ((keys?.Length ?? 0) > 0 && _dic.Count == 0)
                     initDictionary();
-                if (_dic.ContainsKey(key))
-                    return _dic[key];
-                return null;
+                return _dic.ContainsKey(key) ? _dic[key] : null;
             }
         }
     }
 
-    public class Panigator
+
+    public class Paginator
     {
         [JsonPropertyName("total")]
         [JsonProperty("total")]
@@ -162,17 +174,16 @@ namespace JeeBeginner.Models.Common
         [JsonProperty("pageSizes")]
         public List<int> PageSizes { get; set; }
 
-        public Panigator()
-        {
-        }
+        
 
-        public Panigator(int p_PageIndex, int p_PageSize, int p_TotalRows)
+        public Paginator(int p_PageIndex, int p_PageSize, int p_TotalRows)
         {
             PageIndex = p_PageIndex;
             PageSize = p_PageSize;
             TotalItems = p_TotalRows;
-            TotalPage = int.Parse(Math.Ceiling((double)TotalItems / PageSize).ToString());
-            PageSizes = Enumerable.Range(1, TotalPage).Select(x => x).ToList();
+            TotalPage = Math.Max(1, (int)Math.Ceiling((double)TotalItems / PageSize));
+            PageSizes = Enumerable.Range(1, TotalPage).ToList();
+
         }
 
         public class QueryRequestParams
@@ -183,11 +194,11 @@ namespace JeeBeginner.Models.Common
 
             [JsonPropertyName("paginator")]
             [JsonProperty("paginator")]
-            public Panigator Panigator { get; set; }
+            public Paginator Paginator { get; set; }
 
             [JsonPropertyName("searchTerm")]
             [JsonProperty("searchTerm")]
-            public string SearchValue { get; set; }
+            public string SearchValue{ get; set; }
 
             [JsonPropertyName("sorting")]
             [JsonProperty("sorting")]

@@ -1,4 +1,5 @@
-﻿using JeeAccount.Classes;
+﻿using AngularBackEnd.Models.CustomerManagement;
+using JeeAccount.Classes;
 using JeeAccount.Models.CustomerManagement;
 using JeeBeginner.Classes;
 using JeeBeginner.Models.AccountManagement;
@@ -18,7 +19,9 @@ using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Threading.Tasks;
-using static JeeBeginner.Models.Common.Panigator;
+using static JeeBeginner.Models.Common.Paginator;
+
+
 
 namespace JeeBeginner.Controllers
 {
@@ -40,11 +43,14 @@ namespace JeeBeginner.Controllers
             _jwtSecret = configuration.GetValue<string>("JWT:Secret");
         }
 
+       
+
         [HttpGet("Get_DSCustomer")]
         public async Task<ActionResult> GetListUsernameByCustormerID([FromQuery] QueryParams query)
         {
             try
             {
+                Console.WriteLine($"[DEBUG] Page nhận được từ FE: {query.page}, record: {query.record}");
                 var user = Ulities.GetUserByHeader(HttpContext.Request.Headers, _jwtSecret);
                 if (user is null) return Unauthorized(MessageReturnHelper.DangNhap());
 
@@ -370,6 +376,23 @@ namespace JeeBeginner.Controllers
                 {
                     return JsonResultCommon.BatBuoc("CustomerID");
                 }
+                if (query.Paginator == null)
+                {
+                    //query.Paginator = new Paginator { PageIndex = 1, PageSize = 10 , TotalItems = 0 };
+                    query.Paginator = new Paginator(1, 10, 0);
+                }
+                else
+                {
+                    // Gán mặc định nếu PageSize không hợp lệ
+                    if (query.Paginator.PageSize <= 0)
+                    {
+                        query.Paginator.PageSize = 10;
+                    }
+                    if (query.Paginator.PageIndex <= 0)
+                    {
+                        query.Paginator.PageIndex = 1;
+                    }
+                }
 
                 query = query == null ? new QueryRequestParams() : query;
                 BaseModel<object> model = new BaseModel<object>();
@@ -399,10 +422,10 @@ namespace JeeBeginner.Controllers
                     return JsonResultCommon.KhongTonTai("Danh sách");
 
                 pageModel.TotalCount = customerlist.Count();
-                pageModel.AllPage = (int)Math.Ceiling(customerlist.Count() / (decimal)query.Panigator.PageSize);
-                pageModel.Size = query.Panigator.PageSize;
-                pageModel.Page = query.Panigator.PageIndex;
-                customerlist = customerlist.AsEnumerable().Skip((query.Panigator.PageIndex - 1) * query.Panigator.PageSize).Take(query.Panigator.PageSize);
+                pageModel.AllPage = (int)Math.Ceiling(customerlist.Count() / (decimal)query.Paginator.PageSize);
+                pageModel.Size = query.Paginator.PageSize;
+                pageModel.Page = query.Paginator.PageIndex;
+                customerlist = customerlist.AsEnumerable().Skip((query.Paginator.PageIndex - 1) * query.Paginator.PageSize).Take(query.Paginator.PageSize);
                 return JsonResultCommon.ThanhCong(customerlist, pageModel);
             }
             catch (Exception ex)

@@ -19,11 +19,15 @@
       <HintPath>DPS\DBConnection.dll</HintPath>
     </Reference>
     <Reference Include="DPSinfra">
-      <HintPath>C:\Users\huynh\Desktop\JeeBeginner-main\JeeBeginner-main\JeeBeginner-API\bin\Debug\net5.0\DPSinfra.dll</HintPath>
+      <HintPath>C:\Users\huynh\Desktop\JeeBeginner-main\JeeBeginner-main\JeeBeginner-API\bin\Debug\net9.0\DPSinfra.dll</HintPath>
     </Reference>
     <Reference Include="DpsLibs">
       <HintPath>DPS\DpsLibs.dll</HintPath>
     </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="wwwroot\uploads\" />
   </ItemGroup>
 
 </Project>

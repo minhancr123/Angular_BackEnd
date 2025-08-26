@@ -1,4 +1,9 @@
-﻿using JeeBeginner.Reponsitories.AccountManagement;
+﻿using AngularBackEnd.Reponsitories.InventoryMangement;
+using AngularBackEnd.Reponsitories.PropertyMangement;
+using AngularBackEnd.Services.InventoryMangement;
+using AngularBackEnd.Services.ProductManagement;
+using AngularBackEnd.Services.PropertyMangement;
+using JeeBeginner.Reponsitories.AccountManagement;
 using JeeBeginner.Reponsitories.Authorization;
 using JeeBeginner.Reponsitories.CustomerManagement;
 using JeeBeginner.Reponsitories.PartnerManagement;
@@ -15,7 +20,7 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using Newtonsoft.Json.Serialization;
 using System.Text;
-
+using AngularBackEnd.MiddleWare;
 var builder = WebApplication.CreateBuilder(args);
 
 var Configuration = builder.Configuration;
@@ -33,6 +38,12 @@ builder.Services.AddControllers().AddNewtonsoftJson(options =>
 {
     options.SerializerSettings.ContractResolver = new DefaultContractResolver();
 });
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.PropertyNameCaseInsensitive = true; // ✅ không phân biệt hoa thường
+        options.JsonSerializerOptions.PropertyNamingPolicy = null;        // ✅ giữ nguyên PascalCase như model
+    });
 
 // JWT Authentication
 builder.Services.AddAuthentication(x =>
@@ -85,11 +96,17 @@ builder.Services.AddTransient<IAccountManagementRepository, AccountManagementRep
 builder.Services.AddTransient<IPartnerManagementRepository, PartnerManagementRepository>();
 builder.Services.AddTransient<IAuthorizationRepository, AuthorizationRepository>();
 builder.Services.AddTransient<ICustomerManagementRepository, CustomerManagementRepository>();
+builder.Services.AddTransient<IInventoryMangementRepository, IventoryMangementRepository>();
+builder.Services.AddTransient<IPropertyMangementRepository, PropertyMangementRepository>();
+
 
 builder.Services.AddTransient<IPartnerManagementService, PartnerManagementService>();
 builder.Services.AddTransient<IAccountManagementService, AccountManagementService>();
 builder.Services.AddTransient<ICustomAuthorizationService, CustomAuthorizationService>();
 builder.Services.AddTransient<ICustomerManagementService, CustomerManagementService>();
+builder.Services.AddTransient<IIventoryManagementService, InventoryManagementService>();
+builder.Services.AddTransient<IProductService, ProductService>();
+builder.Services.AddTransient<IPropertyManagementService, PropertyManagementService>();
 
 var app = builder.Build();
 
@@ -99,10 +116,12 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger(); // 👈 Phải có dòng này
     app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "JeeBeginner v1"));
 }
-
 app.UseRouting();
 app.UseCors("AllowOrigin");
-
+// Đăng ký middleware
+app.UseLoggingMiddleware();
+app.UseMiddleware<ErrorHandlingMiddleware>();
+app.UseStaticFiles();
 app.UseAuthentication(); // 👈 Phải có nếu dùng JWT
 app.UseAuthorization();
 

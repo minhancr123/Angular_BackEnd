@@ -44,9 +44,8 @@ namespace JeeBeginner.Controllers
         public object LayMenuChucNang()
         {
             ErrorModel error = new ErrorModel();
-            //string Token = lc.GetHeader(Request);
             DataSet ds = new DataSet();
-            string sql = ""; ;
+
             try
             {
                 var user = Ulities.GetUserByHeader(HttpContext.Request.Headers, _jwtSecret);
@@ -54,52 +53,67 @@ namespace JeeBeginner.Controllers
                 {
                     return Unauthorized(MessageReturnHelper.DangNhap());
                 }
-                string select_MainMenu = "", select_Menu = "", sql_listRole = "";
+
+                string sql_listRole = "";
                 SqlConditions cond = new SqlConditions();
                 cond.Add("HienThi", 1);
+
                 List<long> listrole = _authService.GetRules(user.Username);
-                for (int i = 0; i < listrole.Count(); i++)
+                for (int i = 0; i < listrole.Count; i++)
                 {
                     sql_listRole += ",@IDRole" + i;
                     cond.Add("IDRole" + i, listrole[i]);
                 }
-                if (!"".Equals(sql_listRole)) sql_listRole = sql_listRole.Substring(1);
-                if (listrole.Count() == 0)
+                if (!string.IsNullOrEmpty(sql_listRole))
+                    sql_listRole = sql_listRole.Substring(1);
+                if (listrole.Count == 0)
                 {
-                    sql_listRole = "0";
+                    sql_listRole = "0"; // không có quyền nào
                 }
-                //select menu
-                //sql = $@"select title, Target, Summary, ALink, ISNULL(Icon, 'flaticon-interface-7') as Icon, '' as title_, position, Code
-                //from Mainmenu  order by position
-                //select title, AllowPermit, Target, Tbl_submenu.id_row, GroupName, ALink, Summary, AppLink, AppIcon, '' as title_ from Tbl_submenu  order by position";
-                select_MainMenu = $@"
-                            select code --,title, PermissionID, Target, Summary, isNULL(ALink, '#') as ALink, ISNULL(Icon, 'flaticon-interface-7') as Icon, '' as title_, position
-                            from MainMenu 
-                            where (PermissionID is not null and PermissionID in ({sql_listRole})) or  
-                            (Hienthi is NULL
-                            and code in (select distinct groupname from tbl_submenu where 
-                             AllowPermit in ({sql_listRole}) or AllowPermit is NULL)) 
-                            and Hienthi=@HienThi
-                            --order by position  
-                            ";
-                //select menu sub
-                select_Menu = $@"
-select title, AllowPermit, Target, tbl_submenu.id_row,
-GroupName, ALink, Summary, AppLink, AppIcon, '' as title_
-from tbl_submenu 
-where (AllowPermit IN ({sql_listRole}) or (AllowPermit is NULL))
-and GroupName IN ({select_MainMenu})
-and hienthi=@HienThi and ((CustemerID is null)) order by position 
-";
-                select_MainMenu = select_MainMenu
-                    .Replace("--,title, PermissionID, Target, Summary, isNULL(ALink, '#') as ALink, ISNULL(Icon, 'flaticon-interface-7') as Icon", ",title, PermissionID, Target, Summary, isNULL(ALink, '#') as ALink, ISNULL(Icon, 'flaticon-interface-7') as Icon")
-                    .Replace("--order by position", " order by position ");
-                select_MainMenu += select_Menu;
+
+                // Subquery chỉ lấy code menu có hiển thị
+                string subQueryMainMenuCodes = @"
+            select code
+            from MainMenu  
+            where HienThi=@HienThi
+        ";
+
+                // Lấy MainMenu theo PermissionID (lọc theo role user)
+                string select_MainMenu = $@"
+            select mm.code, mm.title, mm.PermissionID, mm.Target, mm.Visible,
+                   mm.Summary, isNULL(mm.ALink, '#') as ALink, 
+                   ISNULL(mm.Icon, 'flaticon-interface-7') as Icon, 
+                   '' as title_, mm.position
+            from MainMenu mm
+            inner join ({subQueryMainMenuCodes}) t on mm.code = t.code 
+            where mm.Visible = 1
+              and (mm.PermissionID in ({sql_listRole}) or mm.PermissionID is null)
+            order by mm.position
+        ";
+
+                // Lấy SubMenu theo AllowPermit (lọc theo role user)
+                string select_Menu = $@"
+            select sm.title, sm.AllowPermit, sm.Target, sm.id_row,
+                   sm.GroupName, sm.ALink, sm.Summary, sm.AppLink, sm.AppIcon, '' as title_
+            from Tbl_Submenu sm
+            inner join ({subQueryMainMenuCodes}) t on sm.GroupName = t.code
+            where (sm.AllowPermit in ({sql_listRole}) or sm.AllowPermit is null)
+              and sm.HienThi=@HienThi
+              and sm.CustemerID is null
+            order by sm.position
+        ";
+
+                // Ghép query
+                string sql = select_MainMenu + ";" + select_Menu;
+
                 using (DpsConnection cnn = new DpsConnection(_connectionString))
                 {
-                    ds = cnn.CreateDataSet(select_MainMenu, cond);
-                    if (ds.Tables.Count == 0) return JsonResultCommon.ThatBai("Không có dữ liệu", cnn.LastError);
+                    ds = cnn.CreateDataSet(sql, cond);
+                    if (ds.Tables.Count == 0)
+                        return JsonResultCommon.ThatBai("Không có dữ liệu", cnn.LastError);
                 }
+
+                // Ghép MainMenu + SubMenu thành JSON
                 var data = from r in ds.Tables[0].AsEnumerable()
                            select new
                            {
@@ -109,18 +123,21 @@ and hienthi=@HienThi and ((CustemerID is null)) order by position
                                Summary = r["Summary"].ToString(),
                                Icon = r["Icon"].ToString(),
                                ALink = r["ALink"].ToString(),
+                               Visible = r.Field<bool?>("Visible") == true ? 1 : 0,
                                Child = from c in ds.Tables[1].AsEnumerable()
-                                       where c["groupname"].ToString().Trim().ToLower().Equals(r["Code"].ToString().Trim().ToLower())
+                                       where c["GroupName"].ToString().Trim().ToLower()
+                                             == r["Code"].ToString().Trim().ToLower()
                                        select new
                                        {
                                            Title = c["title"].ToString(),
                                            Summary = c["Summary"].ToString(),
-                                           AllowPermit = c["AllowPermit"].ToString(),
+                                           AllowPermit = c["AllowPermit"]?.ToString(),
                                            Target = c["Target"].ToString(),
                                            GroupName = c["GroupName"].ToString(),
                                            ALink = c["ALink"].ToString(),
                                        },
                            };
+
                 return JsonResultCommon.ThanhCong(data);
             }
             catch (Exception ex)
@@ -128,6 +145,8 @@ and hienthi=@HienThi and ((CustemerID is null)) order by position
                 return JsonResultCommon.Exception(ex);
             }
         }
+
+
         #endregion Load menu
     }
 }
