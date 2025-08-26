@@ -21,34 +21,7 @@
 ---
 
 ## 📁 Cấu trúc dự án
-
-AngularBackEnd/
-├── Classes/ # Các lớp tiện ích
-│ ├── Constant.cs
-│ ├── JsonResultCommon.cs
-│ ├── MessageReturnHelper.cs
-│ └── Common.cs
-├── Controllers/ # API Controllers
-│ ├── AccountManagementController.cs
-│ ├── InventoryController.cs
-│ ├── MenuController.cs
-│ └── WidgetDashBoardController.cs
-├── Models/ # Data models
-│ ├── Common/
-│ ├── AccountManagement/
-│ └── InventoryManagement/
-├── Services/ # Business logic
-│ ├── AccountManagement/
-│ ├── Authorization/
-│ └── CustomerManagement/
-├── Repositories/ # Data access layer
-├── MiddleWare/ # Custom middleware
-│ ├── CheckPermission.cs
-│ ├── ErrorHandlingMiddleware.cs
-│ └── LoggingMiddleware.cs
-├── DPS/ # External libraries (DLLs)
-├── wwwroot/uploads/ # File storage
-
+<pre lang="markdown"> ``` AngularBackEnd/ ├── Classes/ # Các lớp tiện ích │ ├── Constant.cs │ ├── JsonResultCommon.cs │ ├── MessageReturnHelper.cs │ └── Common.cs ├── Controllers/ # API Controllers │ ├── AccountManagementController.cs │ ├── InventoryController.cs │ ├── MenuController.cs │ └── WidgetDashBoardController.cs ├── Models/ # Data models │ ├── Common/ │ ├── AccountManagement/ │ └── InventoryManagement/ ├── Services/ # Business logic │ ├── AccountManagement/ │ ├── Authorization/ │ └── CustomerManagement/ ├── Repositories/ # Data access layer ├── MiddleWare/ # Custom middleware │ ├── CheckPermission.cs │ ├── ErrorHandlingMiddleware.cs │ └── LoggingMiddleware.cs ├── DPS/ # External libraries (DLLs) └── wwwroot/uploads/ # File storage ``` </pre>
 
 ---
 
